@@ -1,1 +1,2 @@
 from stacknet_funcs.sparse_funcs import from_sparse_to_file
+from stacknet_funcs.feat_engineering_funcs import open_or_closed

@@ -6,10 +6,6 @@ from os import chdir
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix
-from sklearn.feature_selection import VarianceThreshold
-import matplotlib.pyplot as plt
 import stacknet_funcs as funcs
 
 from os.path import join
@@ -47,6 +43,7 @@ test = one_hot_df.iloc[data.shape[0]:,]
 
 #Pre-processing buro_balance
 print('Pre-processing buro_balance...')
+
 buro_grouped_size = buro_balance.groupby('SK_ID_BUREAU')['MONTHS_BALANCE'].size()
 buro_grouped_max = buro_balance.groupby('SK_ID_BUREAU')['MONTHS_BALANCE'].max()
 buro_grouped_min = buro_balance.groupby('SK_ID_BUREAU')['MONTHS_BALANCE'].min()
@@ -59,6 +56,33 @@ buro_counts_unstacked['MONTHS_MIN'] = buro_grouped_min
 buro_counts_unstacked['MONTHS_MAX'] = buro_grouped_max
 
 buro = buro.join(buro_counts_unstacked, how='left', on='SK_ID_BUREAU')
+
+# Bringing through features from: https://www.kaggle.com/shanth84/home-credit-bureau-data-feature-engineering
+
+buro['BUREAU_LOAN_COUNT'] = buro.groupby(['SK_ID_CURR'])['SK_ID_CURR'].transform("count")
+buro['BUREAU_LOAN_TYPES'] = buro[['SK_ID_CURR', 'CREDIT_TYPE']].groupby('SK_ID_CURR')['CREDIT_TYPE'].transform("nunique")
+buro['AVERAGE_LOAN_TYPE'] = buro['BUREAU_LOAN_COUNT']/buro['BUREAU_LOAN_TYPES']
+buro['CREDIT_ACTIVE_BINARY'] = buro['CREDIT_ACTIVE'].apply(lambda x: funcs.open_or_closed(x))
+buro['ACTIVE_LOANS_PERCENTAGE_TEST'] = buro.groupby('SK_ID_CURR')['CREDIT_ACTIVE_BINARY'].transform("mean")
+
+print("Converting the DAYS_CREDIT TO A POSITIVE NUMBER")
+
+test = buro.iloc[0:1000, :]
+
+test['DAYS_CREDIT_TEMP'] = test['DAYS_CREDIT'].apply(lambda x: x * -1)
+test['DAYS_DIFF'] = test.groupby('SK_ID_CURR')['DAYS_CREDIT_TEMP'].apply(lambda x: x.sort_values('DAYS_CREDIT_TEMP', ascending = False)).reset_index(drop = True).diff().fillna(0)
+test['AVG_DAYS_DIFF'] = test.groupby('SK_ID_CURR')['DAYS_CREDIT_TEMP'].transform("mean")
+
+print(test[['SK_ID_CURR', 'SK_ID_BUREAU', 'DAYS_CREDIT', 'DAYS_DIFF', 'AVG_DAYS_DIFF']].head(20))
+
+test['DAYS_DIFF'] = test[['SK_ID_CURR', 'SK_ID_BUREAU', 'DAYS_CREDIT']].groupby('SK_ID_CURR')['DAYS_CREDIT1'].diff().fillna(0)
+
+
+
+print(test[['SK_ID_CURR', 'ACTIVE_LOANS_PERCENTAGE']].head(10))
+(test['ACTIVE_LOANS_PERCENTAGE'] - test['ACTIVE_LOANS_PERCENTAGE_TEST']).sum()
+
+
 
 #Pre-processing previous_application
 print('Pre-processing previous_application...')
